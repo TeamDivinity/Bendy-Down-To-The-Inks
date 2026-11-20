@@ -1,0 +1,7 @@
+﻿<Solution>
+  <Project Path="LineworkLite.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="LineworkLite.Editor.csproj" />
+  <Project Path="OutlineFx.csproj" />
+  <Project Path="OutlineFx.Editor.csproj" />
+</Solution>
