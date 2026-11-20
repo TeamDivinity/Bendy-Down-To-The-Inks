@@ -11,7 +11,6 @@ AssetOrigin:
   serializedVersion: 1
   productId: 326925
   packageName: Free Outline
-  packageVersion: 1.1.0
-  assetPath: Packages/dev.ameye.linework-lite/Runtime/FreeOutline/Shaders/Free Outline
-    Mask.shader
-  uploadId: 796672
+  packageVersion: 2.0.0
+  assetPath: Packages/dev.ameye.linework-lite/Runtime/FreeOutline/Shaders/Free Outline Mask.shader
+  uploadId: 1039670

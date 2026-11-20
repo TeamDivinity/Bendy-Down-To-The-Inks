@@ -5,10 +5,10 @@
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "ea889ab041bf1d4110ecf431a8488220a86fac9d"
+      "hash": "354ebc5b6ed3c2c40dc9797c813b56d5da213c4e"
     },
     "com.unity.ai.navigation": {
-      "version": "2.0.14",
+      "version": "2.0.16",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -71,7 +71,7 @@
       "dependencies": {}
     },
     "com.unity.ide.rider": {
-      "version": "3.0.38",
+      "version": "3.0.40",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -89,7 +89,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.inputsystem": {
-      "version": "1.20.0",
+      "version": "1.20.1",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -138,7 +138,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.recorder": {
-      "version": "5.1.7",
+      "version": "5.1.8",
       "depth": 0,
       "source": "registry",
       "dependencies": {

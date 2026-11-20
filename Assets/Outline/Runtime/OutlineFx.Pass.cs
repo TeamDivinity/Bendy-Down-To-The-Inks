@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using static UnityEngine.Rendering.CommandBufferPool;
 
 //  OutlineFx © NullTale - https://x.com/NullTale/
 namespace OutlineFx
@@ -32,17 +33,27 @@ namespace OutlineFx
                 _buffer         = new RenderTarget().Allocate(nameof(_buffer));
             }
 
-            public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
+            public void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
                 // allocate resources
                 var cmd  = CommandBufferPool.Get(nameof(OutlineFxFeature));
                 var desc = renderingData.cameraData.cameraTargetDescriptor;
+                if (_owner._attachDepth)
+                    desc.depthBufferBits = 32;
+                
+#pragma warning disable CS0618 // Type or member is obsolete (Unity 6 warning suppression)
                 desc.colorFormat = RenderTextureFormat.ARGB32;
+#pragma warning restore CS0618 // Type or member is obsolete
+                
                 _buffer.Get(cmd, desc);
 		
                 if (_owner._outlineMat == null)
+                {
+                    // Исправление утечки памяти CommandBuffer
+                    CommandBufferPool.Release(cmd);
     			    return;
-		    
+                }
+		        
                 _owner._outlineMat.SetFloat(s_Alpha, _owner._alphaCutout);
                 _owner._outlineMat.SetFloat(s_Solid, _owner._solid);
                 
@@ -60,12 +71,24 @@ namespace OutlineFx
                     _owner._outlineMat.SetVector(s_AlphaTO, new Vector4(sm._scale * (Screen.width / (float)Screen.height) / aspectTex, sm._scale, xOffset, yOffset));
                 }
                 
-#if !UNITY_2022_1_OR_NEWER
                 if (_owner._output.Enabled == false)
-                    _output = RTHandles.Alloc(renderingData.cameraData.renderer.cameraColorTarget);
+                {
+#if UNITY_6000_0_OR_NEWER
+                    // URP 17.6+: wrap the built-in camera target because the
+                    // ScriptableRenderer cameraColorTargetHandle accessor is
+                    // not exposed by this package API.
+                    _output = RTHandles.Alloc(
+                        new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget),
+                        name: "_OutlineFxCameraTarget");
+#elif UNITY_2022_1_OR_NEWER
+                    _output = renderingData.cameraData.renderer.cameraColorTargetHandle;
 #else
-				_output = renderingData.cameraData.renderer.cameraColorTargetHandle;
+#pragma warning disable CS0618
+                    _output = RTHandles.Alloc(renderingData.cameraData.renderer.cameraColorTarget);
+#pragma warning restore CS0618
 #endif
+                }
+
                 if (_owner._output.Enabled)
                     _output = _alloc(_owner._output.Value);
                 
@@ -73,21 +96,9 @@ namespace OutlineFx
                 cmd.SetRenderTarget(_buffer.Handle.nameID);
                 cmd.ClearRenderTarget(false, true, Color.clear, 1f);
                 
-                if (_owner._attachDepth)
-                {
-#if !UNITY_2022_1_OR_NEWER
-                    var depth = renderingData.cameraData.renderer.cameraDepthTarget == BuiltinRenderTextureType.CameraTarget
-                        ? renderingData.cameraData.renderer.cameraColorTarget
-                        : renderingData.cameraData.renderer.cameraDepthTarget;
-#else
-                    var depth = renderingData.cameraData.renderer.cameraDepthTargetHandle;
-#endif
-                    cmd.SetRenderTarget(_buffer.Handle, depth);
-                }
-                else
-                {
-                    cmd.SetRenderTarget(_buffer.Handle);
-                }
+                // Use the outline buffer's own depth attachment; renderer depth-target
+                // properties vary across URP versions and may not be exposed.
+                cmd.SetRenderTarget(_buffer.Handle);
                 
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
@@ -98,22 +109,19 @@ namespace OutlineFx
                         continue;
                     
                     var renderer = inst._renderer;
-                    var materials = renderer.sharedMaterials; // 👈 Получаем ВСЕ материалы
+                    var materials = renderer.sharedMaterials; 
                     
-                    // 👇 Рендерим каждый сабмеш отдельно
                     for (int subMesh = 0; subMesh < materials.Length; subMesh++)
                     {
                         var mat = materials[subMesh];
                         
-                        // Безопасно устанавливаем текстуру (с проверкой на null)
                         if (mat != null && mat.mainTexture != null)
                             cmd.SetGlobalTexture(s_MainTex, mat.mainTexture);
                         else
-                            cmd.SetGlobalTexture(s_MainTex, Texture2D.whiteTexture); // fallback
+                            cmd.SetGlobalTexture(s_MainTex, Texture2D.whiteTexture); 
                         
                         cmd.SetGlobalColor(s_Color, inst.Color);
                         
-                        // 👇 subMesh = текущий индекс, shaderPass = 0 (Pass "Transparent")
                         cmd.DrawRenderer(renderer, _owner._outlineMat, subMesh, 0);
                     }
                 }
@@ -127,7 +135,12 @@ namespace OutlineFx
                 // -----------------------------------------------------------------------
                 void _blit(RTHandle from, RTHandle to, Material mat, int pass = 0)
                 {
+#if UNITY_2022_2_OR_NEWER || UNITY_6000_0_OR_NEWER
+                    // В Unity 6 (URP 17) ScriptableRenderPass.Blit устарел. Используем Blitter.
+                    Blitter.BlitCameraTexture(cmd, from, to, mat, pass);
+#else
                     OutlineFxFeature._blit(cmd, from, to, mat, pass);
+#endif
                 }
 
                 void _execute()
@@ -137,12 +150,19 @@ namespace OutlineFx
                 }
             }
 
-            public override void FrameCleanup(CommandBuffer cmd)
+            public void FrameCleanup(CommandBuffer cmd)
             {
                 _buffer.Release(cmd);
                 
-#if !UNITY_2022_1_OR_NEWER
+#if UNITY_6000_0_OR_NEWER
+                // Both the wrapped camera target and custom output are allocated
+                // for this pass and must be released.
+                if (_output != null)
+                    RTHandles.Release(_output);
+#elif !UNITY_2022_1_OR_NEWER
+#pragma warning disable CS0618
                 RTHandles.Release(_output);
+#pragma warning restore CS0618
 #else
                 if (_owner._output.Enabled)
                     RTHandles.Release(_output);

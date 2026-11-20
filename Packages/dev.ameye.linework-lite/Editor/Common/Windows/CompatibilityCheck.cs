@@ -140,7 +140,7 @@ namespace LineworkLite.Editor.Common.Windows
                     paddingLeft = 2
                 }
             };
-            var versionLabel = new Label("1.1.0 • September 2025")
+            var versionLabel = new Label("2.0.0 • November 2026")
             {
                 style =
                 {
@@ -510,18 +510,13 @@ namespace LineworkLite.Editor.Common.Windows
                 }
                 return new CheckResult(ResultEnum.Pass, unityVersion, "Linework Lite is compatible with Unity 6+.");
             }
-            if (unityVersion.StartsWith("2022.3"))
+            if (unityVersion.StartsWith("2022"))
             {
-                if (alpha || beta)
-                {
-                    return new CheckResult(ResultEnum.Info, unityVersion, "Linework Lite is compatible with Unity 2022.3. However, alpha/beta versions of Unity may not be stable.");
-                }
-                return new CheckResult(ResultEnum.Info, unityVersion,
-                    "Linework Lite is compatible with Unity 2022.3. However, Unity no longer develops or improves the rendering path that does not use Render Graph API. Upgrade to Unity 6 to make use of the Render Graph API.");
+                return new CheckResult(ResultEnum.Fail, unityVersion, "Linework Lite is not compatible with Unity 2022. Please upgrade to Unity 6.");
             }
             if (unityVersion.StartsWith("2023"))
             {
-                return new CheckResult(ResultEnum.Fail, unityVersion, $"Linework Lite is not compatible with Unity {unityVersion}. Please upgrade to Unity 6 which is the LTS version for the 2023 cycle.");
+                return new CheckResult(ResultEnum.Fail, unityVersion, "Linework Lite is not compatible with Unity 2023. Please upgrade to Unity 6.");
             }
             return new CheckResult(ResultEnum.Fail, unityVersion, $"Linework Lite is not compatible with Unity {unityVersion}.");
         }
@@ -599,7 +594,9 @@ namespace LineworkLite.Editor.Common.Windows
 
         private CheckResult CheckRenderGraph()
         {
-#if UNITY_6000_0_OR_NEWER
+#if UNITY_6000_4_OR_NEWER
+            return new CheckResult(ResultEnum.Pass, "Enabled", "Render Graph is enabled.");
+#elif UNITY_6000_0_OR_NEWER
             var renderGraphSettings = GraphicsSettings.GetRenderPipelineSettings<RenderGraphSettings>();
             var usingRenderGraph = !renderGraphSettings.enableRenderCompatibilityMode;
             return usingRenderGraph
@@ -607,7 +604,7 @@ namespace LineworkLite.Editor.Common.Windows
                 : new CheckResult(ResultEnum.Info, "Compatibility Mode",
                     "Render Graph is available but not in use because Compatibility Mode is enabled. Unity no longer develops or improves the rendering path that does not use Render Graph API. See Edit > Project Settings > Graphics > Render Graph to disable Compatibility Mode.");
 #else
-            return new CheckResult(ResultEnum.Info, "Not Available", "Unity no longer develops or improves the rendering path that does not use Render Graph API. Upgrade to Unity 6 to make use of the Render Graph API.");
+            return new CheckResult(ResultEnum.Fail, "Not Available", "Unity no longer develops or improves the rendering path that does not use Render Graph API. Upgrade to Unity 6 to make use of the Render Graph API.");
 #endif
         }
 

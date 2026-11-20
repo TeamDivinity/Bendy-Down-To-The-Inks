@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-#if UNITY_6000_0_OR_NEWER
 using Unity.Collections;
 using UnityEngine.Rendering.RenderGraphModule;
-#endif
 
 namespace LineworkLite.Common.Utils
 {
@@ -119,8 +117,7 @@ namespace LineworkLite.Common.Utils
         private static readonly ShaderTagId SRPDefaultUnlit = new("SRPDefaultUnlit");
         public static readonly List<ShaderTagId> DefaultShaderTagIds = new()
             {UniversalForward, UniversalForwardOnly, SRPDefaultUnlit};
-
-#if UNITY_6000_0_OR_NEWER
+        
         private static readonly ShaderTagId[] ShaderTagValues = new ShaderTagId[1];
         private static readonly RenderStateBlock[] RenderStateBlocks = new RenderStateBlock[1];
 
@@ -153,7 +150,6 @@ namespace LineworkLite.Common.Utils
             builder.AllowPassCulling(false);
             builder.SetRenderFunc((PassData _, RasterGraphContext context) => { context.cmd.DrawProcedural(Matrix4x4.identity, clear, 0, MeshTopology.Triangles, 3, 1); });
         }
-#endif
 
         public static (int, int) GetSrcDstBlend(BlendingMode blendMode)
         {

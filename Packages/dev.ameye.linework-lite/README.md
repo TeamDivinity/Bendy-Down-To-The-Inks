@@ -2,7 +2,7 @@
 
 ## About Linework Lite
 
-Linework Lite is a free Unity package that allows you to render high-quality outlines and fill effects.
+Linework Lite is a free Unity package that allows you to render high-quality outlines.
 
 For the full documentation that is always up to date: see [https://linework.ameye.dev/free-outline/](https://linework.ameye.dev/free-outline/).
 
@@ -30,10 +30,13 @@ Linework Lite outlines work using [Rendering Layers](https://linework.ameye.dev/
 
 To update Linework, see [https://docs.unity3d.com/Manual/upm-ui-update2.html](https://docs.unity3d.com/Manual/upm-ui-update2.html).
 
-
 ### Removing the package
 
 To remove Linework, see [https://docs.unity3d.com/Manual/upm-ui-remove.html](https://docs.unity3d.com/Manual/upm-ui-remove.html).
+
+## Compatibility
+
+Linework is compatible with **Unity 6** and the **Universal Render Pipeline**. Other combinations are not supported.
 
 ## Contact
 

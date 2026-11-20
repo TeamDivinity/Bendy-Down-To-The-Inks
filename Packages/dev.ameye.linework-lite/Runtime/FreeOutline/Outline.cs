@@ -1,6 +1,3 @@
-#if !UNITY_6000_0_OR_NEWER
-using LineworkLite.Common.Attributes;
-#endif
 using LineworkLite.Common.Utils;
 using UnityEngine;
 
@@ -10,13 +7,8 @@ namespace LineworkLite.FreeOutline
     {
         [SerializeField, HideInInspector] public Material material;
         [SerializeField, HideInInspector] private bool isActive = true;
-
-#if UNITY_6000_0_OR_NEWER
+        
         public RenderingLayerMask RenderingLayer = RenderingLayerMask.defaultRenderingLayerMask;
-#else
-        [RenderingLayerMask]
-        public uint RenderingLayer = 1;
-#endif
         public LayerMask layerMask = ~0;
         public OutlineRenderQueue renderQueue = OutlineRenderQueue.Opaque;
         public Occlusion occlusion = Occlusion.WhenNotOccluded;

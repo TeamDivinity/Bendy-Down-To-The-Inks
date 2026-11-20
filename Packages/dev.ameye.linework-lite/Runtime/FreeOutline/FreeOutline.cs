@@ -3,19 +3,15 @@ using System.Linq;
 using LineworkLite.Common.Utils;
 using UnityEngine;
 using UnityEngine.Rendering;
-#if UNITY_6000_0_OR_NEWER
 using System.Collections.Generic;
 using UnityEngine.Rendering.RenderGraphModule;
-#endif
 using UnityEngine.Rendering.Universal;
 
 namespace LineworkLite.FreeOutline
 {
     [ExcludeFromPreset]
     [DisallowMultipleRendererFeature("Free Outline")]
-#if UNITY_6000_0_OR_NEWER
     [SupportedOnRenderer(typeof(UniversalRendererData))]
-#endif
     [Tooltip("Free Outline renders outlines by rendering an extruded version of an object behind the original object.")]
     [HelpURL("https://linework.ameye.dev/free-outline")]
     public class FreeOutline : ScriptableRendererFeature
@@ -24,13 +20,10 @@ namespace LineworkLite.FreeOutline
         {
             private FreeOutlineSettings settings;
             private Material mask, outlineBase, clear;
-            private readonly ProfilingSampler maskSampler, outlineSampler;
-
+ 
             public FreeOutlinePass()
             {
                 profilingSampler = new ProfilingSampler(nameof(FreeOutlinePass));
-                maskSampler = new ProfilingSampler(ShaderPassName.Mask);
-                outlineSampler = new ProfilingSampler(ShaderPassName.Outline);
             }
             
             public bool Setup(ref FreeOutlineSettings freeOutlineSettings, ref Material maskMaterial, ref Material outlineMaterial, ref Material clearMaterial)
@@ -136,11 +129,10 @@ namespace LineworkLite.FreeOutline
                 return outline.IsActive();
             }
             
-#if UNITY_6000_0_OR_NEWER
             private class PassData
             {
-                internal List<RendererListHandle> MaskRendererListHandles = new();
-                internal readonly List<RendererListHandle> OutlineRendererListHandles = new();
+                internal readonly List<RendererListHandle> maskRendererListHandles = new();
+                internal readonly List<RendererListHandle> outlineRendererListHandles = new();
             }
             
             public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -155,7 +147,7 @@ namespace LineworkLite.FreeOutline
                     builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture);
                 
                     InitMaskRendererList(renderGraph, frameData, ref passData);
-                    foreach (var rendererListHandle in passData.MaskRendererListHandles)
+                    foreach (var rendererListHandle in passData.maskRendererListHandles)
                     {
                         builder.UseRendererList(rendererListHandle);
                     }
@@ -164,7 +156,7 @@ namespace LineworkLite.FreeOutline
                     
                     builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                     {
-                        foreach (var handle in data.MaskRendererListHandles)
+                        foreach (var handle in data.maskRendererListHandles)
                         {
                             context.cmd.DrawRendererList(handle);
                         }
@@ -179,7 +171,7 @@ namespace LineworkLite.FreeOutline
                     builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture);
 
                     InitOutlineRendererLists(renderGraph, frameData, ref passData);
-                    foreach (var rendererListHandle in passData.OutlineRendererListHandles)
+                    foreach (var rendererListHandle in passData.outlineRendererListHandles)
                     {
                         builder.UseRendererList(rendererListHandle);
                     }
@@ -188,7 +180,7 @@ namespace LineworkLite.FreeOutline
 
                     builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                     {
-                        foreach (var handle in data.OutlineRendererListHandles)
+                        foreach (var handle in data.outlineRendererListHandles)
                         {
                             context.cmd.DrawRendererList(handle);
                         }
@@ -202,7 +194,7 @@ namespace LineworkLite.FreeOutline
 
             private void InitMaskRendererList(RenderGraph renderGraph, ContextContainer frameData, ref PassData passData)
             {
-                passData.MaskRendererListHandles.Clear();
+                passData.maskRendererListHandles.Clear();
                 
                 var renderingData = frameData.Get<UniversalRenderingData>();
                 var cameraData = frameData.Get<UniversalCameraData>();
@@ -244,13 +236,13 @@ namespace LineworkLite.FreeOutline
                     var handle = new RendererListHandle();
                     RenderUtils.CreateRendererListWithRenderStateBlock(renderGraph, ref renderingData.cullResults, drawingSettings, filteringSettings, renderStateBlock,
                         ref handle);
-                    passData.MaskRendererListHandles.Add(handle);
+                    passData.maskRendererListHandles.Add(handle);
                 }
             }
 
             private void InitOutlineRendererLists(RenderGraph renderGraph, ContextContainer frameData, ref PassData passData)
             {
-                passData.OutlineRendererListHandles.Clear();
+                passData.outlineRendererListHandles.Clear();
 
                 var renderingData = frameData.Get<UniversalRenderingData>();
                 var cameraData = frameData.Get<UniversalCameraData>();
@@ -305,158 +297,11 @@ namespace LineworkLite.FreeOutline
                     var handle = new RendererListHandle();
                     RenderUtils.CreateRendererListWithRenderStateBlock(renderGraph, ref renderingData.cullResults, drawingSettings, filteringSettings, renderStateBlock,
                         ref handle);
-                    passData.OutlineRendererListHandles.Add(handle);
+                    passData.outlineRendererListHandles.Add(handle);
 
                 }
-            }
-#endif
-            private RTHandle cameraDepthRTHandle;
-            
-            #pragma warning disable 618, 672
-            public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
-            {
-                ConfigureTarget(cameraDepthRTHandle);
             }
             
-            public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
-            {
-                // 1. Mask.
-                // -> Render a mask to the stencil buffer.
-                var maskCmd = CommandBufferPool.Get();
-
-                using (new ProfilingScope(maskCmd, maskSampler))
-                {
-                    context.ExecuteCommandBuffer(maskCmd);
-                    maskCmd.Clear();
-
-                    var sortingCriteria = renderingData.cameraData.defaultOpaqueSortFlags;
-
-                    foreach (var outline in settings.Outlines)
-                    {
-                        var renderQueueRange = outline.renderQueue switch
-                        {
-                            OutlineRenderQueue.Opaque => RenderQueueRange.opaque,
-                            OutlineRenderQueue.Transparent => RenderQueueRange.transparent,
-                            OutlineRenderQueue.OpaqueAndTransparent => RenderQueueRange.all,
-                            _ => throw new ArgumentOutOfRangeException()
-                        };
-
-                        var drawingSettings = RenderingUtils.CreateDrawingSettings(RenderUtils.DefaultShaderTagIds, ref renderingData, sortingCriteria);
-                        drawingSettings.overrideMaterial = mask;
-
-                        var filteringSettings = new FilteringSettings(renderQueueRange, outline.layerMask, outline.RenderingLayer);
-                        var renderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
-
-                        var blendState = BlendState.defaultValue;
-                        blendState.blendState0 = new RenderTargetBlendState(0);
-                        renderStateBlock.blendState = blendState;
-
-                        var stencilState = StencilState.defaultValue;
-                        stencilState.enabled = true;
-                        stencilState.SetCompareFunction(CompareFunction.Always);
-                        stencilState.SetPassOperation(StencilOp.Replace);
-                        stencilState.SetFailOperation(StencilOp.Replace);
-                        stencilState.SetZFailOperation(StencilOp.Replace);
-                        renderStateBlock.mask |= RenderStateMask.Stencil;
-                        renderStateBlock.stencilReference = 1;
-                        renderStateBlock.stencilState = stencilState;
-
-                        context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSettings, ref renderStateBlock);
-                    }
-                }
-
-                context.ExecuteCommandBuffer(maskCmd);
-                CommandBufferPool.Release(maskCmd);
-
-                // 2. Outline.
-                // -> Render an outline.
-                var outlineCmd = CommandBufferPool.Get();
-
-                using (new ProfilingScope(outlineCmd, outlineSampler))
-                {
-                    CoreUtils.SetRenderTarget(outlineCmd, renderingData.cameraData.renderer.cameraColorTargetHandle, cameraDepthRTHandle); // if using cameraColorRTHandle this does not render in scene view when rendering after post processing with post processing enabled
-                    context.ExecuteCommandBuffer(outlineCmd);
-                    outlineCmd.Clear();
-                    
-                    var sortingCriteria = renderingData.cameraData.defaultOpaqueSortFlags;
-                    var renderQueueRange = RenderQueueRange.opaque;
-
-                    foreach (var outline in settings.Outlines)
-                    {
-                        if (!ShouldRenderOutline(outline))
-                        {
-                            continue;
-                        }
-                        
-                        renderQueueRange = outline.renderQueue switch
-                        {
-                            OutlineRenderQueue.Opaque => RenderQueueRange.opaque,
-                            OutlineRenderQueue.Transparent => RenderQueueRange.transparent,
-                            OutlineRenderQueue.OpaqueAndTransparent => RenderQueueRange.all,
-                            _ => throw new ArgumentOutOfRangeException()
-                        };
-
-                        var drawingSettings = RenderingUtils.CreateDrawingSettings(RenderUtils.DefaultShaderTagIds, ref renderingData, sortingCriteria);
-                        drawingSettings.overrideMaterial = outline.material;
-                        drawingSettings.overrideMaterialPassIndex = (int) outline.extrusionMethod;
-                        drawingSettings.perObjectData = PerObjectData.None;
-                        drawingSettings.enableInstancing = false;
-
-                        var filteringSettings = new FilteringSettings(renderQueueRange, outline.layerMask, outline.RenderingLayer);
-                        
-                        var renderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
-                        if (ShouldRenderStencilMask(outline))
-                        {
-                            var stencilState = StencilState.defaultValue;
-                            stencilState.enabled = true;
-                            stencilState.SetCompareFunction(CompareFunction.NotEqual);
-                            stencilState.SetPassOperation(StencilOp.Zero);
-                            stencilState.SetFailOperation(StencilOp.Keep);
-                            renderStateBlock.mask |= RenderStateMask.Stencil;
-                            renderStateBlock.stencilReference = 1;
-                            renderStateBlock.stencilState = stencilState;
-                        }
-                        
-                        context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSettings, ref renderStateBlock);
-                    }
-                }
-
-                context.ExecuteCommandBuffer(outlineCmd);
-                CommandBufferPool.Release(outlineCmd);
-                
-                // 3. Clear stencil.
-                // -> Clear the stencil buffer.
-                var clearStencilCmd = CommandBufferPool.Get();
-                
-                using (new ProfilingScope(clearStencilCmd, outlineSampler))
-                {
-                    context.ExecuteCommandBuffer(clearStencilCmd);
-                    clearStencilCmd.Clear();
-                
-                    CoreUtils.SetRenderTarget(clearStencilCmd, renderingData.cameraData.renderer.cameraColorTargetHandle, cameraDepthRTHandle); // if using cameraColorRTHandle this does not render in scene view when rendering after post processing with post processing enabled
-                    clearStencilCmd.DrawProcedural(Matrix4x4.identity, clear, 0, MeshTopology.Triangles, 3, 1); 
-                }
-                
-                context.ExecuteCommandBuffer(clearStencilCmd);
-                CommandBufferPool.Release(clearStencilCmd);
-            }
-            #pragma warning restore 618, 672
-            
-            public void SetTarget(RTHandle depth)
-            {
-                cameraDepthRTHandle = depth;
-            }
-
-            public override void OnCameraCleanup(CommandBuffer cmd)
-            {
-                if (cmd == null)
-                {
-                    throw new ArgumentNullException(nameof(cmd));
-                }
-                
-                cameraDepthRTHandle = null;
-            }
-
             public void Dispose()
             {
                 settings = null; // de-reference settings to allow them to be freed from memory
@@ -496,11 +341,7 @@ namespace LineworkLite.FreeOutline
             if (renderingData.cameraData.cameraType == CameraType.Preview
                 || renderingData.cameraData.cameraType == CameraType.Reflection
                 || renderingData.cameraData.cameraType == CameraType.SceneView && !settings.ShowInSceneView
-#if UNITY_6000_0_OR_NEWER
                 || UniversalRenderer.IsOffscreenDepthTexture(ref renderingData.cameraData))
-#else
-                )
-#endif
                 return;
 
             if (!CreateMaterials())
@@ -513,20 +354,10 @@ namespace LineworkLite.FreeOutline
             if (render) renderer.EnqueuePass(freeOutlinePass);
         }
         
-        #pragma warning disable 618, 672
-        public override void SetupRenderPasses(ScriptableRenderer renderer, in RenderingData renderingData)
-        {
-            if (settings == null || freeOutlinePass == null || renderingData.cameraData.cameraType == CameraType.SceneView && !settings.ShowInSceneView) return;
-            if (renderingData.cameraData.cameraType is CameraType.Preview or CameraType.Reflection) return;
-
-            freeOutlinePass.SetTarget(renderer.cameraDepthTargetHandle);
-        }
-        #pragma warning restore 618, 672
-        
         /// <summary>
         /// Clean up resources allocated to the Scriptable Renderer Feature such as materials.
         /// </summary>
-        override protected void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
             freeOutlinePass?.Dispose();
             freeOutlinePass = null;
